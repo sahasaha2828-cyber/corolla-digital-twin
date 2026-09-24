@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Corolla Digital Twin — Prototype</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#080b0f;color:#eef2f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#app{height:100%;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.top{position:absolute;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+.brand{pointer-events:auto;background:rgba(10,13,18,.78);backdrop-filter:blur(14px);border:1px solid #27303a;border-radius:14px;padding:9px 12px;font-size:13px;font-weight:700}
+.brand small{display:block;color:#8d99a5;font-weight:500;margin-top:2px}
+.actions{display:flex;gap:7px;pointer-events:auto}
+button{border:1px solid #303943;background:rgba(13,17,23,.86);color:#e9edf0;border-radius:11px;padding:10px 11px;font-weight:700;font-size:12px}
+button:active{transform:scale(.97)}
+.panel{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);background:rgba(9,12,17,.88);backdrop-filter:blur(18px);border:1px solid #29323c;border-radius:18px;padding:13px;box-shadow:0 12px 40px #0008}
+.row{display:flex;gap:8px;overflow:auto;padding-bottom:2px}
+.row button{white-space:nowrap}
+.info{margin-top:10px;display:flex;justify-content:space-between;gap:12px}
+#partName{font-size:16px;font-weight:800}
+#partInfo{font-size:11px;color:#98a3ad;margin-top:3px;line-height:1.5}
+.progress{margin-top:10px;height:6px;background:#202731;border-radius:99px;overflow:hidden}
+#bar{height:100%;width:18%;background:#dfe5e9;transition:.35s}
+#hint{font-size:11px;color:#7f8b96;margin-top:7px}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#080b0f;z-index:5;flex-direction:column;gap:12px}
+.spinner{width:32px;height:32px;border:3px solid #303943;border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.badge{font-size:10px;color:#aeb8c1;border:1px solid #343d47;padding:4px 7px;border-radius:99px}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="loading"><div class="spinner"></div><b>Preparing Digital Twin</b><small style="color:#89939d">Corolla interactive prototype</small></div>
+<div class="top">
+  <div class="brand">COROLLA DIGITAL TWIN<small>2024 Hybrid 1.8 • Prototype</small></div>
+  <div class="actions">
+    <button id="xray">X-RAY</button>
+    <button id="explode">EXPLODE</button>
+  </div>
+</div>
+<div class="panel">
+  <div class="row">
+    <button data-mode="overview">🚗 السيارة</button>
+    <button data-mode="engine">⚙️ المحرك</button>
+    <button data-mode="wheels">🛞 الإطارات</button>
+    <button data-mode="brakes">🛑 الفرامل</button>
+    <button data-mode="interior">💺 المقصورة</button>
+    <button id="assemble">🔧 تركيب</button>
+  </div>
+  <div class="info">
+    <div><div id="partName">اضغط على أي جزء</div><div id="partInfo">اسحب للتدوير • قرّب بإصبعين للتكبير • اضغط على جزء لفحصه</div></div>
+    <span class="badge" id="status">READY</span>
+  </div>
+  <div class="progress"><div id="bar"></div></div>
+  <div id="hint">هذه نسخة أولية لبناء النظام؛ النموذج التفصيلي الحقيقي يُضاف لاحقًا.</div>
+</div>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+import {OrbitControls} from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x080b0f);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.1,100);
+camera.position.set(7,3.4,8);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.getElementById('app').prepend(renderer.domElement);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=.06; controls.minDistance=3; controls.maxDistance=15;
+controls.target.set(0,1,0);
+
+scene.add(new THREE.HemisphereLight(0xbfd7ff,0x171b21,2.0));
+const key=new THREE.DirectionalLight(0xffffff,3); key.position.set(5,8,5); key.castShadow=true; scene.add(key);
+const fill=new THREE.DirectionalLight(0x9db8ff,1.2); fill.position.set(-5,3,-4); scene.add(fill);
+
+const ground=new THREE.Mesh(new THREE.CircleGeometry(7,64),new THREE.MeshStandardMaterial({color:0x10151b,roughness:.82}));
+ground.rotation.x=-Math.PI/2; ground.position.y=-.62; ground.receiveShadow=true; scene.add(ground);
+
+const car=new THREE.Group(); scene.add(car);
+const parts=[]; const original=new Map();
+
+function mat(color,metal=0,rough=.45,transparent=false,opacity=1){
+ return new THREE.MeshStandardMaterial({color,metalness:metal,roughness:rough,transparent,opacity});
+}
+const bodyMat=mat(0xe9edf0,0.15,.25), black=mat(0x101318,.5,.3), glass=mat(0x0b1720,.2,.12,true,.48), tire=mat(0x090a0b,.1,.72), metal=mat(0x9da5ad,.8,.25), brake=mat(0x8d1f24,.65,.27), interior=mat(0x15181c,.05,.62), lamp=mat(0xdfe8ee,.1,.18,true,.7);
+
+function box(name,size,pos,material,system='Body',rot=[0,0,0]){
+ const o=new THREE.Mesh(new THREE.BoxGeometry(...size),material);
+ o.name=name; o.position.set(...pos); o.rotation.set(...rot); o.castShadow=true;o.receiveShadow=true;
+ o.userData={name,system,home:o.position.clone(),homeRot:o.rotation.clone()};
+ car.add(o);parts.push(o);original.set(o,o.position.clone()); return o;
+}
+function cyl(name,r,depth,pos,material,system='Wheels',rot=[Math.PI/2,0,0]){
+ const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,depth,40),material);
+ o.name=name;o.position.set(...pos);o.rotation.set(...rot);o.castShadow=true;o.receiveShadow=true;
+ o.userData={name,system,home:o.position.clone(),homeRot:o.rotation.clone()};
+ car.add(o);parts.push(o);original.set(o,o.position.clone());return o;
+}
+
+/* Stylized Corolla-like prototype geometry. Each visible assembly is a separate object.
+   Replaceable with GLB/CAD parts later. */
+box('Body Shell',[4.8,1.05,1.75],[0,.15,0],bodyMat);
+box('Hood',[2.0,.12,1.55],[1.35,.78,0],bodyMat);
+box('Roof',[2.35,.12,1.48],[-.25,1.48,0],bodyMat);
+box('Front Bumper',[.18,.62,1.8],[2.45,-.12,0],bodyMat);
+box('Rear Bumper',[.18,.62,1.8],[-2.45,-.12,0],bodyMat);
+box('Windshield',[.10,.78,1.42],[.72,1.12,0],glass,'Body',[0,.0,-.48]);
+box('Rear Glass',[.10,.68,1.35],[-1.25,1.08,0],glass,'Body',[0,.0,.55]);
+for(const z of [-.91,.91]) box('Front Door '+(z<0?'L':'R'),[1.28,.82,.08],[-.15,.55,z],bodyMat);
+for(const z of [-.91,.91]) box('Rear Door '+(z<0?'L':'R'),[1.18,.78,.08],[-1.48,.5,z],bodyMat);
+for(const z of [-.91,.91]) { box('Side Mirror '+(z<0?'L':'R'),[.28,.18,.16],[.72,.98,z*1.03],black); }
+for(const z of [-.91,.91]) { 
+ cyl('Wheel '+(z<0?'Front Left':'Front Right'),.53,.28,[1.42,-.42,z],tire,'Wheels');
+ cyl('Wheel '+(z<0?'Rear Left':'Rear Right'),.53,.28,[-1.45,-.42,z],tire,'Wheels');
+}
+for(const z of [-.91,.91]) {
+ cyl('Brake Disc '+(z<0?'FL':'FR'),.32,.08,[1.42,-.42,z*1.01],metal,'Brakes');
+ cyl('Brake Disc '+(z<0?'RL':'RR'),.32,.08,[-1.45,-.42,z*1.01],metal,'Brakes');
+ box('Brake Caliper '+(z<0?'L':'R'),[.12,.3,.18],[1.42,-.3,z*1.04],brake,'Brakes');
+}
+box('Engine Cover',[1.65,.28,1.2],[1.05,.62,0],black,'Engine');
+box('Engine Block',[1.55,.72,1.15],[1.05,.12,0],metal,'Engine');
+box('Radiator',[.18,.7,1.3],[2.05,.18,0],metal,'Engine');
+box('Hybrid Battery',[1.55,.45,.95],[-.35,-.05,0],mat(0x303840,.65,.3),'Hybrid');
+box('Inverter',[.65,.25,.75],[.55,.38,.1],metal,'Hybrid');
+box('Dashboard',[1.9,.32,1.35],[-.15,1.02,0],interior,'Interior');
+box('Steering Wheel',[.10,.48,.48],[.7,1.25,-.58],black,'Interior',[Math.PI/2,0,0]);
+box('Center Console',[1.0,.38,.55],[-.1,.72,0],interior,'Interior');
+
+function addBolt(name,x,y,z,system){
+ const b=cyl(name,.07,.10,[x,y,z],metal,system,[0,Math.PI/2,0]); b.userData.bolt=true; return b;
+}
+let boltN=1;
+for(const x of [1.42,-1.45]) for(const z of [-.91,.91]) for(let i=0;i<5;i++){
+ const a=i*Math.PI*2/5; addBolt('Wheel Bolt '+boltN++,x+Math.cos(a)*.18,-.42+Math.sin(a)*.18,z*1.05,'Wheels');
+}
+for(let i=0;i<8;i++) addBolt('Engine Bolt '+(i+1),.55+(i%4)*.32,.62,(i<4?-0.48:.48),'Engine');
+
+const ray=new THREE.Raycaster(), pointer=new THREE.Vector2();
+let xray=false, exploded=false, assembled=true, selected=null;
+
+function select(obj){
+ if(!obj)return;
+ if(selected && selected.material && selected.material.emissive) selected.material.emissive.setHex(0);
+ selected=obj;
+ if(obj.material && obj.material.emissive){obj.material.emissive.setHex(0x222222)}
+ document.getElementById('partName').textContent=obj.name;
+ document.getElementById('partInfo').textContent=`System: ${obj.userData.system} • ${obj.userData.bolt?'Fastener / Bolt':'Interactive component'}`;
+ document.getElementById('status').textContent='SELECTED';
+}
+renderer.domElement.addEventListener('pointerdown',e=>{
+ pointer.x=(e.clientX/innerWidth)*2-1; pointer.y=-(e.clientY/innerHeight)*2+1;
+ ray.setFromCamera(pointer,camera);
+ const hit=ray.intersectObjects(parts,false)[0];
+ if(hit)select(hit.object);
+});
+
+function setSystem(system){
+ parts.forEach(p=>{
+  const active=system==='overview'||p.userData.system===system;
+  p.visible=active;
+  if(active)p.scale.setScalar(1.0);
+ });
+ exploded=false;
+ document.getElementById('status').textContent=system.toUpperCase();
+}
+function explode(){
+ exploded=!exploded;
+ parts.forEach(p=>{
+  if(exploded){
+   const h=p.userData.home.clone();
+   const dir=h.clone(); dir.y=Math.max(dir.y+.2,.2);
+   const factor=p.userData.bolt?.3:(p.userData.system==='Body'?.8:1.45);
+   p.position.copy(h).add(dir.normalize().multiplyScalar(factor));
+  }else p.position.copy(p.userData.home);
+ });
+ document.getElementById('status').textContent=exploded?'EXPLODED':'ASSEMBLED';
+}
+function toggleXray(){
+ xray=!xray;
+ parts.forEach(p=>{
+  if(p.material && p.userData.system==='Body'){
+   p.material.transparent=xray; p.material.opacity=xray?.12:1;
+  }
+ });
+ document.getElementById('status').textContent=xray?'X-RAY':'NORMAL';
+}
+document.getElementById('explode').onclick=explode;
+document.getElementById('xray').onclick=toggleXray;
+document.getElementById('assemble').onclick=()=>{
+ parts.forEach(p=>p.position.copy(p.userData.home));
+ exploded=false;assembled=true;
+ document.getElementById('status').textContent='ASSEMBLED';
+ document.getElementById('bar').style.width='100%';
+};
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setSystem(b.dataset.mode==='overview'?'overview':b.dataset.mode[0].toUpperCase()+b.dataset.mode.slice(1)));
+
+document.getElementById('loading').style.display='none';
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}
+animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
