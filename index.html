@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Corolla Digital Twin — Offline</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080a0d;color:#eef2f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+#c{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+.ui{position:fixed;inset:0;pointer-events:none}
+.top{padding:calc(env(safe-area-inset-top) + 10px) 12px 0;display:flex;justify-content:space-between;gap:8px}
+.card,.panel{background:#0b0f14e8;border:1px solid #2b333d;border-radius:16px;backdrop-filter:blur(12px);box-shadow:0 10px 35px #0007}
+.brand{padding:9px 12px;font-size:12px;font-weight:800}.brand small{display:block;color:#8d98a3;font-weight:500;margin-top:3px}
+.actions{display:flex;gap:6px;pointer-events:auto}.actions button,.tools button{background:#121820;border:1px solid #303944;color:#eaf0f4;border-radius:11px;padding:10px;font-weight:700}
+.panel{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 10px);padding:10px;pointer-events:auto}
+.tools{display:flex;gap:6px;overflow:auto}.tools button{white-space:nowrap;font-size:11px}
+.info{display:flex;justify-content:space-between;gap:10px;margin-top:9px}.name{font-weight:800;font-size:15px}.sub{font-size:10px;color:#89949f;margin-top:3px}.badge{font-size:9px;border:1px solid #39434e;padding:5px 7px;border-radius:99px;height:max-content}
+.progress{height:5px;background:#202730;border-radius:99px;margin-top:9px;overflow:hidden}.bar{height:100%;width:20%;background:#e5e9ec;transition:.3s}
+.hint{font-size:10px;color:#75818c;margin-top:6px}
+#toast{position:absolute;top:25%;left:50%;transform:translateX(-50%);padding:9px 12px;opacity:0;transition:.2s;font-size:12px}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui">
+ <div class="top">
+  <div class="card brand">COROLLA DIGITAL TWIN<small>2024 Hybrid 1.8 • OFFLINE</small></div>
+  <div class="actions">
+   <button id="x" class="card">X-RAY</button>
+   <button id="e" class="card">EXPLODE</button>
+  </div>
+ </div>
+ <div id="toast" class="card"></div>
+ <div class="panel">
+  <div class="tools">
+   <button data-s="ALL">🚗 السيارة</button><button data-s="ENGINE">⚙️ المحرك</button>
+   <button data-s="WHEELS">🛞 الإطارات</button><button data-s="BRAKES">🛑 الفرامل</button>
+   <button data-s="HYBRID">🔋 الهجين</button><button data-s="INTERIOR">💺 المقصورة</button>
+   <button id="a">🔧 تركيب</button>
+  </div>
+  <div class="info"><div><div id="n" class="name">اضغط على أي جزء</div><div id="i" class="sub">اسحب بإصبعك للتدوير • بإصبعين للتكبير • اضغط على جزء للفحص</div></div><div id="b" class="badge">READY</div></div>
+  <div class="progress"><div id="p" class="bar"></div></div>
+  <div class="hint">نسخة تعمل محليًا بدون مكتبات أو إنترنت.</div>
+ </div>
+</div>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+let W,H,dpr,rx=-.12,ry=.65,zoom=1,exploded=false,xray=false,sel=null,lastX=0,lastY=0,pinch=0,drag=false;
+const parts=[];
+function P(name,system,x,y,z,w,h,d,kind='box',extra={}){parts.push({name,system,x,y,z,w,h,d,kind,...extra,home:[x,y,z]})}
+P('Body Shell','BODY',0,.25,0,4.8,1.05,1.75,'box');
+P('Hood','BODY',1.25,.82,0,2.1,.14,1.5,'box');
+P('Roof','BODY',-.25,1.45,0,2.35,.15,1.45,'box');
+P('Front Bumper','BODY',2.45,-.1,0,.2,.58,1.85,'box');
+P('Rear Bumper','BODY',-2.45,-.1,0,.2,.58,1.85,'box');
+P('Windshield','BODY',.7,1.12,0,.12,.75,1.4,'glass');
+P('Rear Glass','BODY',-1.2,1.08,0,.12,.67,1.3,'glass');
+for(const z of [-.93,.93]){P('Front Door '+(z<0?'L':'R'),'BODY',-.15,.55,z,1.3,.8,.08,'box');P('Rear Door '+(z<0?'L':'R'),'BODY',-1.48,.5,z,1.2,.76,.08,'box');P('Side Mirror '+(z<0?'L':'R'),'BODY',.72,1,z*1.03,.3,.18,.18,'box')}
+for(const z of [-.93,.93]){P('Front Wheel '+(z<0?'L':'R'),'WHEELS',1.42,-.42,z,.62,.62,.28,'wheel');P('Rear Wheel '+(z<0?'L':'R'),'WHEELS',-1.45,-.42,z,.62,.62,.28,'wheel');P('Front Brake Disc '+(z<0?'L':'R'),'BRAKES',1.42,-.42,z*1.02,.38,.38,.09,'disc');P('Rear Brake Disc '+(z<0?'L':'R'),'BRAKES',-1.45,-.42,z*1.02,.38,.38,.09,'disc');P('Brake Caliper '+(z<0?'L':'R'),'BRAKES',1.42,-.25,z*1.04,.16,.3,.2,'box')}
+P('Engine Cover','ENGINE',1.05,.68,0,1.7,.25,1.15,'box');P('Engine Block','ENGINE',1.05,.12,0,1.55,.7,1.15,'engine');P('Radiator','ENGINE',2.03,.18,0,.18,.7,1.3,'metal');
+P('Hybrid Battery','HYBRID',-.35,-.02,0,1.55,.45,.95,'battery');P('Inverter','HYBRID',.55,.38,.1,.65,.25,.75,'metal');
+P('Dashboard','INTERIOR',-.15,1.02,0,1.9,.32,1.35,'interior');P('Center Console','INTERIOR',-.1,.72,0,1,.35,.55,'interior');P('Steering Wheel','INTERIOR',.72,1.25,-.58,.12,.5,.5,'wheel');
+let bn=1;for(const x of [1.42,-1.45])for(const z of [-.93,.93])for(let k=0;k<5;k++){let a=k*Math.PI*2/5;P('Wheel Bolt '+bn++,'WHEELS',x+Math.cos(a)*.18,-.42+Math.sin(a)*.18,z*1.055,.1,.1,.1,'bolt',{bolt:true})}
+for(let k=0;k<8;k++)P('Engine Bolt '+(k+1),'ENGINE',.55+(k%4)*.32,.62,k<4?-.48:.48,.1,.1,.1,'bolt',{bolt:true});
+
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;C.width=W*dpr;C.height=H*dpr;C.style.width=W+'px';C.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}resize();addEventListener('resize',resize);
+function rot(v){let [x,y,z]=v;let cy=Math.cos(ry),sy=Math.sin(ry),cx=Math.cos(rx),sx=Math.sin(rx);let X=x*cy-z*sy,Z=x*sy+z*cy;let Y=y*cx-Z*sx;Z=y*sx+Z*cx;return [X,Y,Z]}
+function project(p){let q=rot(p);let s=105*zoom/(7+q[2]);return [W/2+q[0]*s,H*.49-q[1]*s,s,q[2]]}
+function color(sys,kind){if(kind==='wheel')return '#111418';if(kind==='disc')return '#aab2ba';if(kind==='engine')return '#68717a';if(kind==='metal')return '#9aa3ab';if(kind==='battery')return '#39434c';if(kind==='interior')return '#1a1e23';if(kind==='glass')return xray?'#273b46aa':'#17303dcc';if(sys==='BRAKES')return '#9a252b';if(sys==='BODY')return xray?'#dce4e61c':'#e8ecef';return '#b8c0c7'}
+function drawBox(p){let q=project([p.x,p.y,p.z]);let w=p.w*q[2],h=p.h*q[2],depth=p.d*q[2];ctx.save();ctx.translate(q[0],q[1]);let skew=depth*.22;ctx.fillStyle=color(p.system,p.kind);ctx.globalAlpha=(xray&&p.system==='BODY')?.16:1;ctx.beginPath();ctx.rect(-w/2,-h/2,w,h);ctx.fill();ctx.strokeStyle=sel===p?'#ffffff':'#39424b';ctx.lineWidth=sel===p?2.5:1;ctx.stroke();ctx.restore()}
+function drawRound(p){let q=project([p.x,p.y,p.z]),r=p.w*.5*q[2];ctx.save();ctx.translate(q[0],q[1]);ctx.fillStyle=color(p.system,p.kind);ctx.globalAlpha=(xray&&p.system==='BODY')?.16:1;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=sel===p?'#fff':'#343c45';ctx.lineWidth=sel===p?3:1;ctx.stroke();if(p.kind==='disc'){ctx.fillStyle='#080a0d';ctx.beginPath();ctx.arc(0,0,r*.23,0,Math.PI*2);ctx.fill()}if(p.kind==='bolt'){ctx.fillStyle='#d9dee2';ctx.beginPath();ctx.arc(0,0,r*.42,0,Math.PI*2);ctx.fill()}ctx.restore()}
+function draw(){ctx.clearRect(0,0,W,H);let bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#080b0f');bg.addColorStop(1,'#12171d');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+ctx.save();ctx.fillStyle='#11161b';ctx.beginPath();ctx.ellipse(W/2,H*.73,Math.min(W*.42,300),28,0,0,Math.PI*2);ctx.fill();ctx.restore();
+let visible=parts.filter(p=>p.system==='BODY'||p.system==='ENGINE'||p.system==='WHEELS'||p.system==='BRAKES'||p.system==='HYBRID'||p.system==='INTERIOR');visible.forEach(p=>{let off=exploded?(Math.max(0.35,p.y+1)*.32):0;let q={...p};q.x=p.x+(p.x>=0?off:-off);q.y=p.y+(p.y>=.5?off*.35:-off*.12);q.z=p.z+(p.z>=0?off*.45:-off*.45);if(p.kind==='wheel'||p.kind==='disc')drawRound(q);else drawBox(q)});requestAnimationFrame(draw)}draw();
+function hit(x,y){let best=null,bd=45;for(const p of parts){if(!['BODY','ENGINE','WHEELS','BRAKES','HYBRID','INTERIOR'].includes(p.system))continue;let q=project([p.x,p.y,p.z]);let r=(p.kind==='wheel'||p.kind==='disc'||p.kind==='bolt'?p.w*55:Math.max(p.w,p.h)*38)*zoom;if(Math.hypot(x-q[0],y-q[1])<Math.max(r,24)&&Math.abs(q[3])<bd){bd=Math.abs(q[3]);best=p}}return best}
+C.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;sel=hit(e.clientX,e.clientY);if(sel){document.getElementById('n').textContent=sel.name;document.getElementById('i').textContent='System: '+sel.system+(sel.bolt?' • Fastener / Bolt':' • Interactive component');document.getElementById('b').textContent='SELECTED';document.getElementById('p').style.width='35%'}});
+C.addEventListener('pointermove',e=>{if(!drag)return;let dx=e.clientX-lastX,dy=e.clientY-lastY;ry+=dx*.008;rx=Math.max(-1.1,Math.min(1.1,rx+dy*.006));lastX=e.clientX;lastY=e.clientY});
+C.addEventListener('pointerup',()=>drag=false);
+C.addEventListener('wheel',e=>{zoom=Math.max(.65,Math.min(1.8,zoom-e.deltaY*.0007))},{passive:true});
+let ts=null;C.addEventListener('touchstart',e=>{if(e.touches.length===2)pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)},{passive:true});
+C.addEventListener('touchmove',e=>{if(e.touches.length===2){let n=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoom=Math.max(.65,Math.min(1.8,zoom*(n/pinch)));pinch=n;e.preventDefault()}},{passive:false});
+function toast(t){let q=document.getElementById('toast');q.textContent=t;q.classList.add('show');setTimeout(()=>q.classList.remove('show'),1200)}
+document.getElementById('e').onclick=()=>{exploded=!exploded;document.getElementById('b').textContent=exploded?'EXPLODED':'ASSEMBLED';toast(exploded?'Exploded View':'Assembled');};
+document.getElementById('x').onclick=()=>{xray=!xray;document.getElementById('b').textContent=xray?'X-RAY':'NORMAL';toast(xray?'X-Ray ON':'X-Ray OFF')};
+document.getElementById('a').onclick=()=>{exploded=false;document.getElementById('b').textContent='ASSEMBLED';document.getElementById('p').style.width='100%';toast('Assembly Reset')};
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{let s=b.dataset.s;parts.forEach(p=>p._hidden=s!=='ALL'&&p.system!==s);document.getElementById('b').textContent=s;toast(s==='ALL'?'All systems':s)});
+</script>
+</body>
+</html>
