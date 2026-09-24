@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Corolla Digital Twin — 3D Offline</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070b10;color:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+.top{position:fixed;top:14px;left:14px;right:14px;z-index:3;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+.brand,.btn,.panel{background:rgba(9,14,21,.92);border:1px solid #34404d;box-shadow:0 8px 25px #0007;backdrop-filter:blur(8px)}
+.brand{padding:12px 15px;border-radius:17px}.brand b{display:block;font-size:16px}.brand span{font-size:11px;color:#9ca9b8}
+.actions{display:flex;gap:7px;pointer-events:auto}.btn{color:#fff;border-radius:14px;padding:11px 12px;font-weight:800}
+.panel{position:fixed;left:12px;right:12px;bottom:12px;z-index:3;border-radius:20px;padding:11px;max-height:35vh;overflow:auto}
+.tabs{display:flex;gap:7px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;background:#111923;color:#dce3ea;border:1px solid #354252;border-radius:13px;padding:10px 12px;font-weight:700}.tab.active{background:#1d2a37;border-color:#9aa8b7}
+.info{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-size:19px;font-weight:850}.meta{font-size:11px;color:#99a6b3;margin-top:3px}.badge{border:1px solid #354252;border-radius:999px;padding:7px 10px;font-size:10px;color:#cbd3da}.hint{text-align:center;color:#82909e;font-size:11px;margin-top:8px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="top">
+ <div class="actions">
+  <button class="btn" id="exp">تفكيك</button><button class="btn" id="xr">X-RAY</button><button class="btn" id="rs">إعادة</button>
+ </div>
+ <div class="brand"><b>TOYOTA COROLLA</b><span>FAW • Hybrid 1.8 • 2024 • 3D Digital Twin</span></div>
+</div>
+<div class="panel">
+ <div class="tabs">
+  <button class="tab active" data-s="all">السيارة 🚗</button><button class="tab" data-s="body">الهيكل</button><button class="tab" data-s="engine">المحرك</button><button class="tab" data-s="hybrid">الهجين 🔋</button><button class="tab" data-s="brakes">الفرامل</button><button class="tab" data-s="wheels">الإطارات</button><button class="tab" data-s="interior">المقصورة</button>
+ </div>
+ <div class="info"><div><div class="name" id="n">لم يتم تحديد قطعة</div><div class="meta" id="m">اضغط على أي جزء • اسحب للدوران • إصبعان للتقريب</div></div><div class="badge" id="ct">0 أجزاء</div></div>
+ <div class="hint">محرك 3D مدمج بالكامل — لا يحتاج مكتبات أو إنترنت</div>
+</div>
+
+<script>
+(()=>{
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let dpr=Math.min(devicePixelRatio||1,2), W=innerWidth,H=innerHeight;
+function size(){W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)} addEventListener('resize',size);size();
+
+const parts=[];
+const C={
+ body:'#dfe4e8', dark:'#151b22', glass:'#263d4c', tire:'#07090b', rim:'#aeb8c0',
+ brake:'#c42b35', hybrid:'#23735a', gold:'#c9a23b', light:'#e8f5ff'
+};
+function P(name,sys,type,x,y,z,w,h,dep,col,ex){parts.push({name,sys,type,x,y,z,w,h,dep,col,ex:[...ex],vis:true,alpha:1})}
+function box(name,sys,x,y,z,w,h,dep,col,ex=[0,0,0]){P(name,sys,'box',x,y,z,w,h,dep,col,ex)}
+function wheel(name,sys,x,z,ex=[0,0,0]){P(name,sys,'wheel',x,-.18,z,1.05,1.05,.38,C.tire,ex);P('Rim '+name,sys,'wheel2',x,-.18,z,.70,.70,.12,C.rim,ex);P('Brake Disc '+name,'brakes','wheel2',x,-.18,z,.49,.49,.08,C.rim,ex);P('Brake Caliper '+name,'brakes','box',x-.22,-.05,z,.16,.26,.18,C.brake,ex);for(let i=0;i<5;i++)P('Wheel Bolt '+name+' '+(i+1),sys,'bolt',x,-.18,z,.12,.12,.1,C.gold,ex)}
+box('Body Shell','body',0,.1,0,6.9,1.0,1.75,C.body,[0,0,0]);
+box('Hood','body',-2.25,.65,0,2.15,.14,1.65,C.body,[0,.08,0]);
+box('Roof','body',.25,1.2,0,2.75,.13,1.55,C.body,[0,0,0]);
+box('Trunk Lid','body',2.45,.65,0,1.4,.14,1.65,C.body,[0,-.06,0]);
+box('Front Bumper','body',-3.48,.05,0,.18,.68,1.9,C.body);
+box('Rear Bumper','body',3.48,.05,0,.18,.68,1.9,C.body);
+box('Windshield','body',-1.0,1.0,0,.12,.72,1.48,C.glass,[0,-.38,0]);
+box('Rear Glass','body',1.48,1.0,0,.12,.70,1.48,C.glass,[0,.38,0]);
+box('Left Headlamp','body',-3.58,.35,-.62,.12,.35,.5,C.light);box('Right Headlamp','body',-3.58,.35,.62,.12,.35,.5,C.light);
+box('Left Tail Lamp','body',3.58,.35,-.62,.12,.38,.5,C.brake);box('Right Tail Lamp','body',3.58,.35,.62,.12,.38,.5,C.brake);
+box('1.8L Hybrid Engine','engine',-1.65,.62,0,1.7,.9,1.2,C.dark,[-1,-.4,0]);
+box('Engine Cover','engine',-1.65,1.1,0,1.3,.12,.9,C.gold,[-1,-.5,0]);
+box('Air Intake','engine',-2.3,1.0,0,.75,.25,.55,C.dark,[-1,-.4,0]);
+box('Inverter','hybrid',-.35,.82,0,.8,.25,.7,C.gold,[1,-.7,0]);
+box('Hybrid Battery Pack','hybrid',1.05,-.32,0,1.65,.55,1.1,C.hybrid,[1,-1.2,0]);
+box('Battery Safety Cover','hybrid',1.05,-.01,0,1.4,.08,.9,'#2d916a',[1,-1.2,0]);
+box('Dashboard','interior',-.45,.68,0,1.45,.28,1.5,C.dark,[0,-1.1,0]);
+box('Driver Seat','interior',-.65,.0,-.48,.7,.78,.62,C.dark,[0,-1.5,-.7]);
+box('Passenger Seat','interior',-.65,.0,.48,.7,.78,.62,C.dark,[0,-1.5,.7]);
+box('Rear Seat','interior',1.05,0,0,1.5,.62,.62,C.dark,[0,-1.4,0]);
+box('Steering Wheel','interior',-1.0,.78,-.5,.12,.48,.48,C.rim,[0,-1.4,-.7]);
+box('Front Subframe','body',-2.1,-.55,0,1.55,.16,1.2,C.dark,[0,-1.0,0]);
+box('Rear Subframe','body',2.1,-.55,0,1.55,.16,1.2,C.dark,[0,-1.0,0]);
+wheel('Front Left','wheels',-2.35,-1);wheel('Front Right','wheels',-2.35,1);wheel('Rear Left','wheels',2.35,-1);wheel('Rear Right','wheels',2.35,1);
+document.getElementById('ct').textContent=parts.length+' أجزاء';
+
+let yaw=.45,pitch=.16,zoom=10,explode=false,xray=false,active='all',selected=null,drag=false,lastX=0,lastY=0,pinch=0;
+const proj=(x,y,z)=>{
+ let cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ let X=x*cy-z*sy,Z=x*sy+z*cy,Y=y*cp-Z*sp,ZZ=y*sp+Z*cp;
+ let scale=Math.min(W,H)*.09*zoom/10, f=8/(8+ZZ);
+ return [W/2+X*scale*f,H*.48-Y*scale*f,f,ZZ];
+};
+function visible(p){return active==='all'||p.sys===active}
+function offset(p){if(!explode)return [0,0,0];return p.ex}
+function drawPart(p){
+ if(!p.vis||!visible(p))return;
+ let o=offset(p), q=proj(p.x+o[0],p.y+o[1],p.z+o[2]);if(q[3]<-7)return;
+ ctx.globalAlpha=xray&&p.sys==='body'?.22:1;
+ if(p.type==='wheel'||p.type==='wheel2'||p.type==='bolt'){
+  let r=(p.w*.5)*Math.min(W,H)*.09*q[2]*zoom/10;
+  ctx.beginPath();ctx.arc(q[0],q[1],r,0,Math.PI*2);ctx.fillStyle=p.col;ctx.fill();
+  ctx.lineWidth=Math.max(1,r*.08);ctx.strokeStyle=p.type==='wheel'?'#303941':'#d4dbe0';ctx.stroke();
+  if(p.type==='wheel'){for(let i=0;i<5;i++){let a=i*Math.PI*2/5;ctx.beginPath();ctx.arc(q[0]+Math.cos(a)*r*.48,q[1]+Math.sin(a)*r*.48,r*.07,0,7);ctx.fillStyle=C.gold;ctx.fill()}}
+ }else{
+  let s=Math.min(W,H)*.09*q[2]*zoom/10, ww=p.w*s, hh=p.h*s;
+  ctx.save();ctx.translate(q[0],q[1]);
+  ctx.fillStyle=p.col;ctx.strokeStyle=selected===p?'#fff':'#596572';ctx.lineWidth=selected===p?3:1.2;
+  ctx.beginPath();ctx.roundRect(-ww/2,-hh/2,ww,hh,Math.min(ww,hh)*.08);ctx.fill();ctx.stroke();ctx.restore();
+ }
+ ctx.globalAlpha=1;
+}
+function render(){
+ ctx.clearRect(0,0,W,H);
+ let g=ctx.createRadialGradient(W*.5,H*.43,10,W*.5,H*.5,Math.max(W,H)*.65);g.addColorStop(0,'#111a23');g.addColorStop(1,'#05080c');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#0d1319';ctx.beginPath();ctx.ellipse(W/2,H*.72,W*.36,H*.055,0,0,7);ctx.fill();
+ parts.slice().sort((a,b)=>a.y-b.y).forEach(drawPart);
+ requestAnimationFrame(render);
+}
+function hit(x,y){
+ let best=null,bd=1e9;
+ for(const p of parts){if(!visible(p))continue;let o=offset(p),q=proj(p.x+o[0],p.y+o[1],p.z+o[2]);let s=Math.min(W,H)*.09*q[2]*zoom/10,r=p.type.startsWith('wheel')?p.w*s*.55:Math.max(p.w*s,p.h*s)*.6;let dd=(x-q[0])**2+(y-q[1])**2;if(dd<r*r&&dd<bd){best=p;bd=dd}}
+ selected=best;document.getElementById('n').textContent=best?best.name:'لم يتم تحديد قطعة';document.getElementById('m').textContent=best?'System: '+best.sys.toUpperCase()+' • Interactive component':'اضغط على أي جزء من السيارة';
+}
+cv.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;hit(e.clientX,e.clientY)});
+addEventListener('pointerup',()=>drag=false);
+addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-lastX)*.009;pitch=Math.max(-.7,Math.min(.75,pitch+(e.clientY-lastY)*.006));lastX=e.clientX;lastY=e.clientY});
+cv.addEventListener('wheel',e=>{zoom=Math.max(.65,Math.min(1.65,zoom-e.deltaY*.001))},{passive:true});
+cv.addEventListener('touchmove',e=>{if(e.touches.length===2){e.preventDefault();let a=e.touches[0],b=e.touches[1],dd=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(pinch)zoom=Math.max(.65,Math.min(1.65,zoom+(dd-pinch)*.002));pinch=dd}},{passive:false});
+cv.addEventListener('touchend',()=>pinch=0);
+document.getElementById('exp').onclick=()=>explode=!explode;
+document.getElementById('xr').onclick=()=>xray=!xray;
+document.getElementById('rs').onclick=()=>{explode=false;xray=false;yaw=.45;pitch=.16;zoom=1;selected=null;active='all';document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',i===0));};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{active=b.dataset.s;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active')});
+render();
+})();
+</script>
+</body>
+</html>
